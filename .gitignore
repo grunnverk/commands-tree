@@ -15,3 +15,5 @@ processed/
 .git/hooks/pre-commit
 
 .env
+output/
+.kodrdriv-test-cache.json
