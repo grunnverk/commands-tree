@@ -42,7 +42,7 @@
     "@eldrforge/core": "^0.1.1",
     "@eldrforge/commands-git": "^0.1.2",
     "@eldrforge/tree-core": "^0.1.6",
-    "@eldrforge/tree-execution": "^0.1.5",
+    "@eldrforge/tree-execution": "^0.1.6",
     "@eldrforge/git-tools": "^0.1.17",
     "@eldrforge/github-tools": "^0.1.19",
     "@eldrforge/shared": "^0.1.7"
