@@ -1,0 +1,17 @@
+.env
+dist
+temp-dist
+node_modules
+*.log
+.vscode
+coverage/
+tsconfig.tsbuildinfo
+output/
+input/
+processed/
+.kodrdriv-test-cache.json
+
+# Git hooks (environment-specific)
+.git/hooks/pre-commit
+
+.env

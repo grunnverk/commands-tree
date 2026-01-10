@@ -1,0 +1,33 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - main
+      - working
+      - 'release/**'
+      - 'feature/**'
+      - 'dependabot/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci --verbose --foreground-scripts
+        timeout-minutes: 10
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run test
+
