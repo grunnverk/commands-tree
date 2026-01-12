@@ -38,6 +38,9 @@
   ],
   "author": "Tim O'Brien <tobrien@discursive.com>",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "dependencies": {
     "@eldrforge/core": "^0.1.2",
     "@eldrforge/commands-git": "^0.1.3",
