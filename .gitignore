@@ -17,3 +17,4 @@ processed/
 .env
 output/
 .kodrdriv-test-cache.json
+package-lock.json
