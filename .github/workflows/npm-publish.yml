@@ -23,11 +23,12 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: |
-          # Use public registry (package-lock.json is gitignored to avoid Walmart registry refs)
+          # Use public npm registry (package-lock.json is gitignored)
           npm config set registry https://registry.npmjs.org/
-          # Force install to work around npm optional dependency bugs with rollup native bindings
+          # Clean install to ensure platform-specific optional deps (rollup native bindings) are resolved correctly
           # See: https://github.com/npm/cli/issues/4828
-          npm install --force
+          rm -rf node_modules package-lock.json
+          npm install --include=optional
         timeout-minutes: 10
       - run: npm run lint
       - run: npm run build
@@ -47,11 +48,12 @@ jobs:
         run: npm install -g npm@latest
       - name: Install dependencies
         run: |
-          # Use public registry (package-lock.json is gitignored to avoid Walmart registry refs)
+          # Use public npm registry (package-lock.json is gitignored)
           npm config set registry https://registry.npmjs.org/
-          # Force install to work around npm optional dependency bugs with rollup native bindings
+          # Clean install to ensure platform-specific optional deps (rollup native bindings) are resolved correctly
           # See: https://github.com/npm/cli/issues/4828
-          npm install --force
+          rm -rf node_modules package-lock.json
+          npm install --include=optional
         timeout-minutes: 10
       - run: npm publish --access public
 
