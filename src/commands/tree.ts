@@ -1513,7 +1513,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
     // Check if we're in built-in command mode (tree command with second argument)
     const builtInCommand = runConfig.tree?.builtInCommand;
-    const supportedBuiltInCommands = ['commit', 'release', 'publish', 'link', 'unlink', 'development', 'branches', 'run', 'checkout', 'updates', 'precommit'];
+    const supportedBuiltInCommands = ['commit', 'release', 'publish', 'link', 'unlink', 'development', 'branches', 'run', 'checkout', 'updates', 'precommit', 'pull'];
 
     if (builtInCommand && !supportedBuiltInCommands.includes(builtInCommand)) {
         throw new Error(`Unsupported built-in command: ${builtInCommand}. Supported commands: ${supportedBuiltInCommands.join(', ')}`);
