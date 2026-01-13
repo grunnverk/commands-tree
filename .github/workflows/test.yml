@@ -28,7 +28,9 @@ jobs:
         run: |
           # Use public registry (package-lock.json is gitignored to avoid Walmart registry refs)
           npm config set registry https://registry.npmjs.org/
-          npm install --verbose --foreground-scripts
+          # Force install to work around npm optional dependency bugs with rollup native bindings
+          # See: https://github.com/npm/cli/issues/4828
+          npm install --force
         timeout-minutes: 10
       - run: npm run lint
       - run: npm run build
