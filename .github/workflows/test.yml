@@ -23,9 +23,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Install dependencies
-        run: npm ci --verbose --foreground-scripts
+        run: |
+          # Use public npm registry (package-lock.json is gitignored)
+          npm config set registry https://registry.npmjs.org/
+          # Clean install to ensure platform-specific optional deps (rollup native bindings) are resolved correctly
+          # See: https://github.com/npm/cli/issues/4828
+          rm -rf node_modules package-lock.json
+          npm install --force
         timeout-minutes: 10
       - run: npm run lint
       - run: npm run build
