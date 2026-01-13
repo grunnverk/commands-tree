@@ -49,7 +49,7 @@ describe('updates command', () => {
 
     it('throws without scope parameter', async () => {
         const { execute } = await import('../../src/commands/updates');
-        await expect(execute(createConfig({ dryRun: true }))).rejects.toThrow('Scope parameter is required');
+        await expect(execute(createConfig({ dryRun: true }))).rejects.toThrow('No scope specified and no default scopes configured');
     });
 
     it('executes with scope parameter', async () => {

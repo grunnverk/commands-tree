@@ -42,6 +42,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
+    "@eldrforge/ai-service": "^0.1.21",
     "@eldrforge/core": "^0.1.3",
     "@eldrforge/commands-git": "^0.1.4",
     "@eldrforge/tree-core": "^0.1.8",
