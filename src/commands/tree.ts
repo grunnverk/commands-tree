@@ -1271,6 +1271,144 @@ export const execute = async (runConfig: Config): Promise<string> => {
         return `Package '${promotePackage}' promoted to completed status.`;
     }
 
+    // Handle order command - show execution order
+    if (runConfig.tree?.order) {
+        logger.info('📦 Analyzing package execution order...\n');
+
+        const directories = runConfig.tree?.directories || [process.cwd()];
+        const excludedPatterns = runConfig.tree?.exclude || [];
+
+        let allPackageJsonPaths: string[] = [];
+        for (const targetDirectory of directories) {
+            const packageJsonPaths = await scanForPackageJsonFiles(targetDirectory, excludedPatterns);
+            allPackageJsonPaths = allPackageJsonPaths.concat(packageJsonPaths);
+        }
+
+        if (allPackageJsonPaths.length === 0) {
+            return 'No packages found';
+        }
+
+        const dependencyGraph = await buildDependencyGraph(allPackageJsonPaths);
+        const buildOrder = topologicalSort(dependencyGraph);
+
+        // Build a map of package name -> dependency versions from package.json
+        const storage = createStorage();
+        const packageDependencyVersions = new Map<string, Map<string, string>>();
+
+        for (const pkgName of buildOrder) {
+            const pkgInfo = dependencyGraph.packages.get(pkgName);
+            if (pkgInfo) {
+                const packageJsonPath = path.join(pkgInfo.path, 'package.json');
+                try {
+                    const content = await storage.readFile(packageJsonPath, 'utf-8');
+                    const parsed = safeJsonParse(content, packageJsonPath);
+                    const packageJson = validatePackageJson(parsed, packageJsonPath);
+
+                    const depVersions = new Map<string, string>();
+                    const depSections = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+
+                    for (const section of depSections) {
+                        if (packageJson[section]) {
+                            for (const [depName, depVersion] of Object.entries(packageJson[section])) {
+                                // Only store if it's a local dependency
+                                if (dependencyGraph.packages.has(depName)) {
+                                    depVersions.set(depName, depVersion as string);
+                                }
+                            }
+                        }
+                    }
+                    packageDependencyVersions.set(pkgName, depVersions);
+                } catch {
+                    // If we can't read the package.json, just skip
+                }
+            }
+        }
+
+        // Group packages by their dependency level for visualization
+        const packageLevels = new Map<string, number>();
+        const calculateLevel = (pkgName: string, visited: Set<string> = new Set()): number => {
+            if (visited.has(pkgName)) return 0;
+            visited.add(pkgName);
+
+            const deps = dependencyGraph.edges.get(pkgName) || new Set();
+            if (deps.size === 0) return 0;
+
+            let maxDepLevel = 0;
+            for (const dep of deps) {
+                maxDepLevel = Math.max(maxDepLevel, calculateLevel(dep, visited) + 1);
+            }
+            return maxDepLevel;
+        };
+
+        // Calculate levels for all packages
+        for (const pkgName of buildOrder) {
+            packageLevels.set(pkgName, calculateLevel(pkgName));
+        }
+
+        // Group packages by level
+        const levelGroups = new Map<number, string[]>();
+        for (const [pkgName, level] of packageLevels) {
+            if (!levelGroups.has(level)) {
+                levelGroups.set(level, []);
+            }
+            levelGroups.get(level)!.push(pkgName);
+        }
+
+        // Sort levels for display
+        const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+
+        // Display output
+        logger.info('='.repeat(60));
+        logger.info('EXECUTION ORDER (topological sort)');
+        logger.info('='.repeat(60));
+        logger.info('');
+
+        for (const level of sortedLevels) {
+            const packages = levelGroups.get(level)!;
+            const levelLabel = level === 0 ? 'Level 0 (no local dependencies)' : `Level ${level}`;
+            logger.info(`--- ${levelLabel} ---`);
+
+            for (const pkgName of packages) {
+                const pkgInfo = dependencyGraph.packages.get(pkgName);
+                const localDeps = dependencyGraph.edges.get(pkgName) || new Set();
+                const version = pkgInfo?.version || 'unknown';
+                const depVersions = packageDependencyVersions.get(pkgName);
+
+                logger.info(`  ${pkgName}@${version}`);
+
+                if (localDeps.size > 0 && depVersions) {
+                    const depsWithVersions = Array.from(localDeps).map(dep => {
+                        const depVersion = depVersions.get(dep) || '?';
+                        return `${dep}@${depVersion}`;
+                    });
+                    logger.info(`    └─ depends on: ${depsWithVersions.join(', ')}`);
+                } else if (localDeps.size > 0) {
+                    logger.info(`    └─ depends on: ${Array.from(localDeps).join(', ')}`);
+                }
+
+                if (pkgInfo) {
+                    logger.verbose(`    path: ${pkgInfo.path}`);
+                }
+            }
+            logger.info('');
+        }
+
+        logger.info('='.repeat(60));
+        logger.info('SUMMARY');
+        logger.info('='.repeat(60));
+        logger.info(`Total packages: ${buildOrder.length}`);
+        logger.info(`Dependency levels: ${sortedLevels.length}`);
+        logger.info('');
+        logger.info('Sequential execution order:');
+        buildOrder.forEach((pkg, idx) => {
+            const pkgInfo = dependencyGraph.packages.get(pkg);
+            const version = pkgInfo?.version || 'unknown';
+            logger.info(`  ${idx + 1}. ${pkg}@${version}`);
+        });
+
+        return `Analyzed ${buildOrder.length} packages across ${sortedLevels.length} dependency levels`;
+    }
+
     // Handle audit-branches command
     if (runConfig.tree?.auditBranches) {
         logger.info('🔍 Auditing branch state across all packages...');
@@ -2506,6 +2644,29 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     logger.error('');
                     throw new Error('Script validation failed. See details above.');
                 }
+            }
+
+            // Validate precommit script exists in all packages for precommit built-in command
+            if (builtInCommand === 'precommit') {
+                logger.info('🔍 Validating all packages have a "precommit" script...');
+                const validation = await validateScripts(dependencyGraph.packages, ['precommit']);
+
+                if (!validation.valid) {
+                    logger.error('');
+                    logger.error('❌ Precommit validation failed. The following packages are missing a "precommit" script:');
+                    logger.error('');
+                    for (const [packageName] of validation.missingScripts) {
+                        logger.error(`   - ${packageName}`);
+                    }
+                    logger.error('');
+                    logger.error('💡 To fix this, add a "precommit" script to each package.json, for example:');
+                    logger.error('   "scripts": {');
+                    logger.error('     "precommit": "npm run clean && npm run build && npm run lint && npm run test"');
+                    logger.error('   }');
+                    logger.error('');
+                    throw new Error('Precommit validation failed. All packages must have a "precommit" script.');
+                }
+                logger.info('✅ All packages have a "precommit" script');
             }
 
             // Validate command for parallel execution if parallel mode is enabled
