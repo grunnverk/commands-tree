@@ -44,7 +44,7 @@
   "dependencies": {
     "@eldrforge/ai-service": "^0.1.22",
     "@eldrforge/core": "^0.1.4",
-    "@eldrforge/commands-git": "^0.1.4",
+    "@eldrforge/commands-git": "^0.1.5",
     "@eldrforge/tree-core": "^0.1.8",
     "@eldrforge/tree-execution": "^0.1.8",
     "@eldrforge/git-tools": "^0.1.22",
