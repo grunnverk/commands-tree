@@ -2600,6 +2600,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
             // Publish command options (pass self-reflection - publish reads other release config from config file)
             if (builtInCommand === 'publish') {
+                commandSpecificOptions += ' --skip-link-cleanup';
                 if (runConfig.release?.selfReflection) {
                     commandSpecificOptions += ' --self-reflection';
                 }
