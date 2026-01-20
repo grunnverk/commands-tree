@@ -2618,6 +2618,11 @@ export const execute = async (runConfig: Config): Promise<string> => {
                 commandSpecificOptions += ' --clean-node-modules';
             }
 
+            // Precommit command options
+            if (builtInCommand === 'precommit' && runConfig.tree?.fix) {
+                commandSpecificOptions += ' --fix';
+            }
+
             // Link/Unlink externals
             if ((builtInCommand === 'link' || builtInCommand === 'unlink') && runConfig.tree?.externals && runConfig.tree.externals.length > 0) {
                 commandSpecificOptions += ` --externals ${runConfig.tree.externals.join(' ')}`;
@@ -3005,8 +3010,48 @@ export const execute = async (runConfig: Config): Promise<string> => {
         return returnOutput;
 
     } catch (error: any) {
-        const errorMessage = `Failed to analyze workspace: ${error.message}`;
+        // Build a more informative error message for workspace analysis failures
+        let errorMessage = `Failed to analyze workspace: ${error.message}`;
+
+        // Add context about what might have caused the failure
+        const errorStack = error.stack || '';
+        const isPackageJsonError = error.message?.includes('package.json') || errorStack.includes('package.json');
+        const isDependencyError = error.message?.includes('dependency') || errorStack.includes('dependency');
+        const isGraphError = error.message?.includes('graph') || errorStack.includes('buildDependencyGraph');
+
+        const contextHints: string[] = [];
+
+        if (isPackageJsonError) {
+            contextHints.push('• Invalid or unparseable package.json files may be present');
+            contextHints.push('• Uncommitted changes to package.json files may cause analysis issues');
+        }
+
+        if (isDependencyError || isGraphError) {
+            contextHints.push('• Circular dependencies or invalid dependency references may exist');
+            contextHints.push('• Missing or incorrect dependency versions in package.json files');
+        }
+
+        // Always include general hints
+        contextHints.push('• Uncommitted changes may interfere with workspace analysis');
+        contextHints.push('• Check that all package.json files are valid JSON');
+        contextHints.push('• Verify that all referenced dependencies exist in the workspace');
+
+        if (contextHints.length > 0) {
+            errorMessage += '\n\nPossible causes:\n' + contextHints.join('\n');
+        }
+
+        // Include the original error details if available
+        if (error.packageName) {
+            errorMessage += `\n\nFailed in package: ${error.packageName}`;
+        }
+        if (error.path) {
+            errorMessage += `\n\nFailed at path: ${error.path}`;
+        }
+
         logger.error(errorMessage);
+        if (error.stack && logger.debug) {
+            logger.debug('Full error stack:', error.stack);
+        }
         throw new Error(errorMessage);
     } finally {
         // Intentionally preserve the mutex across executions to support multiple runs in the same process (e.g., test suite)
