@@ -2847,11 +2847,25 @@ export const execute = async (runConfig: Config): Promise<string> => {
                 createParallelProgressLogger(adapter.getPool(), runConfig);
 
                 // Execute
-                const result = await adapter.execute();
+                try {
+                    const result = await adapter.execute();
 
-                // Format and return result
-                const formattedResult = formatParallelResult(result);
-                return formattedResult;
+                    // Format and return result
+                    const formattedResult = formatParallelResult(result);
+                    return formattedResult;
+                } catch (parallelError: any) {
+                    // Enhance parallel execution errors with context
+                    // Check if the error already has package context
+                    if (!parallelError.packageName && parallelError.message) {
+                        // Try to extract package name from error message
+                        const packageMatch = parallelError.message.match(/package[:\s]+([@\w/-]+)/i);
+                        if (packageMatch) {
+                            parallelError.packageName = packageMatch[1];
+                        }
+                    }
+                    // Re-throw to be caught by outer handler
+                    throw parallelError;
+                }
             }
 
             // Sequential execution
@@ -2867,6 +2881,16 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
                 const packageInfo = dependencyGraph.packages.get(packageName)!;
                 const packageLogger = createPackageLogger(packageName, i + 1, buildOrder.length, isDryRun);
+
+                // Call onPackageFocus callback if provided
+                if ((runConfig.tree as any)?.onPackageFocus) {
+                    try {
+                        await Promise.resolve((runConfig.tree as any).onPackageFocus(packageName, i, buildOrder.length));
+                    } catch (error: any) {
+                        // Log but don't fail execution if callback errors
+                        logger.warn(`onPackageFocus callback failed for ${packageName}: ${error.message}`);
+                    }
+                }
 
                 const result = await executePackage(
                     packageName,
@@ -2975,7 +2999,15 @@ export const execute = async (runConfig: Config): Promise<string> => {
                         logger.error(`   What failed: ${result.error?.message || 'Unknown error'}`);
                         logger.error('');
 
-                        throw new Error(`Command failed in package ${packageName}`);
+                        // Create error with package context
+                        const executionError: any = new Error(`Command failed in package ${packageName}`);
+                        executionError.packageName = packageName;
+                        executionError.path = packageInfo.path;
+                        executionError.error = result.error;
+                        executionError.command = commandToRun;
+                        executionError.position = i + 1;
+                        executionError.total = buildOrder.length;
+                        throw executionError;
                     }
                     break;
                 }
@@ -3010,14 +3042,63 @@ export const execute = async (runConfig: Config): Promise<string> => {
         return returnOutput;
 
     } catch (error: any) {
-        // Build a more informative error message for workspace analysis failures
-        let errorMessage = `Failed to analyze workspace: ${error.message}`;
+        // Determine if this is an execution error or workspace analysis error
+        const errorMessage = error.message || String(error);
+        const errorStack = error.stack || '';
+
+        // Check if this is an execution error (thrown during package execution)
+        const isExecutionError = errorMessage.includes('Command failed in package') ||
+                                 errorMessage.includes('Execution failed') ||
+                                 errorMessage.includes('Package execution failed') ||
+                                 errorStack.includes('executePackage') ||
+                                 errorStack.includes('TreeExecutionAdapter') ||
+                                 errorStack.includes('DynamicTaskPool') ||
+                                 error.packageName; // Errors thrown from executePackage include packageName
+
+        if (isExecutionError) {
+            // This is an execution error, not a workspace analysis error
+            // Preserve the original error message and add context
+            let enhancedMessage = errorMessage;
+
+            // Add package context if available
+            if (error.packageName) {
+                enhancedMessage += `\n\nFailed in package: ${error.packageName}`;
+            }
+            if (error.path) {
+                enhancedMessage += `\n\nFailed at path: ${error.path}`;
+            }
+
+            // Include the original error details if different from message
+            if (error.error?.message && error.error.message !== errorMessage) {
+                enhancedMessage += `\n\nOriginal error: ${error.error.message}`;
+            }
+
+            // Add execution-specific hints
+            enhancedMessage += '\n\nThis error occurred during package execution, not workspace analysis.';
+            enhancedMessage += '\nPossible causes:';
+            enhancedMessage += '\n• The command failed in the specified package';
+            enhancedMessage += '\n• Check the package logs for detailed error information';
+            enhancedMessage += '\n• Verify the package can run the command successfully when executed directly';
+
+            logger.error(enhancedMessage);
+            if (error.stack && logger.debug) {
+                logger.debug('Full error stack:', error.stack);
+            }
+            // Re-throw with enhanced message but preserve the original error structure
+            const enhancedError = new Error(enhancedMessage);
+            enhancedError.stack = error.stack;
+            if (error.packageName) (enhancedError as any).packageName = error.packageName;
+            if (error.path) (enhancedError as any).path = error.path;
+            throw enhancedError;
+        }
+
+        // This is a workspace analysis error
+        let analysisErrorMessage = `Failed to analyze workspace: ${errorMessage}`;
 
         // Add context about what might have caused the failure
-        const errorStack = error.stack || '';
-        const isPackageJsonError = error.message?.includes('package.json') || errorStack.includes('package.json');
-        const isDependencyError = error.message?.includes('dependency') || errorStack.includes('dependency');
-        const isGraphError = error.message?.includes('graph') || errorStack.includes('buildDependencyGraph');
+        const isPackageJsonError = errorMessage.includes('package.json') || errorStack.includes('package.json');
+        const isDependencyError = errorMessage.includes('dependency') || errorStack.includes('dependency');
+        const isGraphError = errorMessage.includes('graph') || errorStack.includes('buildDependencyGraph');
 
         const contextHints: string[] = [];
 
@@ -3037,22 +3118,22 @@ export const execute = async (runConfig: Config): Promise<string> => {
         contextHints.push('• Verify that all referenced dependencies exist in the workspace');
 
         if (contextHints.length > 0) {
-            errorMessage += '\n\nPossible causes:\n' + contextHints.join('\n');
+            analysisErrorMessage += '\n\nPossible causes:\n' + contextHints.join('\n');
         }
 
         // Include the original error details if available
         if (error.packageName) {
-            errorMessage += `\n\nFailed in package: ${error.packageName}`;
+            analysisErrorMessage += `\n\nFailed in package: ${error.packageName}`;
         }
         if (error.path) {
-            errorMessage += `\n\nFailed at path: ${error.path}`;
+            analysisErrorMessage += `\n\nFailed at path: ${error.path}`;
         }
 
-        logger.error(errorMessage);
+        logger.error(analysisErrorMessage);
         if (error.stack && logger.debug) {
             logger.debug('Full error stack:', error.stack);
         }
-        throw new Error(errorMessage);
+        throw new Error(analysisErrorMessage);
     } finally {
         // Intentionally preserve the mutex across executions to support multiple runs in the same process (e.g., test suite)
         // Do not destroy here; the process lifecycle will clean up resources.
