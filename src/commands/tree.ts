@@ -2035,10 +2035,12 @@ export const execute = async (runConfig: Config): Promise<string> => {
                 BOLD: '\x1b[1m'
             };
 
-            // Check if terminal supports ANSI
+            // Check if terminal supports ANSI (and we're not in MCP server mode)
+            // In MCP mode, all stdout must be valid JSON-RPC, so disable progress display
             const supportsAnsi = process.stdout.isTTY &&
                                   process.env.TERM !== 'dumb' &&
-                                  !process.env.NO_COLOR;
+                                  !process.env.NO_COLOR &&
+                                  process.env.KODRDRIV_MCP_SERVER !== 'true';
 
             const totalPackages = buildOrder.length;
             const concurrency = 5; // Process up to 5 packages at a time
