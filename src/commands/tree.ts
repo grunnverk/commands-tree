@@ -1271,6 +1271,144 @@ export const execute = async (runConfig: Config): Promise<string> => {
         return `Package '${promotePackage}' promoted to completed status.`;
     }
 
+    // Handle order command - show execution order
+    if (runConfig.tree?.order) {
+        logger.info('📦 Analyzing package execution order...\n');
+
+        const directories = runConfig.tree?.directories || [process.cwd()];
+        const excludedPatterns = runConfig.tree?.exclude || [];
+
+        let allPackageJsonPaths: string[] = [];
+        for (const targetDirectory of directories) {
+            const packageJsonPaths = await scanForPackageJsonFiles(targetDirectory, excludedPatterns);
+            allPackageJsonPaths = allPackageJsonPaths.concat(packageJsonPaths);
+        }
+
+        if (allPackageJsonPaths.length === 0) {
+            return 'No packages found';
+        }
+
+        const dependencyGraph = await buildDependencyGraph(allPackageJsonPaths);
+        const buildOrder = topologicalSort(dependencyGraph);
+
+        // Build a map of package name -> dependency versions from package.json
+        const storage = createStorage();
+        const packageDependencyVersions = new Map<string, Map<string, string>>();
+
+        for (const pkgName of buildOrder) {
+            const pkgInfo = dependencyGraph.packages.get(pkgName);
+            if (pkgInfo) {
+                const packageJsonPath = path.join(pkgInfo.path, 'package.json');
+                try {
+                    const content = await storage.readFile(packageJsonPath, 'utf-8');
+                    const parsed = safeJsonParse(content, packageJsonPath);
+                    const packageJson = validatePackageJson(parsed, packageJsonPath);
+
+                    const depVersions = new Map<string, string>();
+                    const depSections = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+
+                    for (const section of depSections) {
+                        if (packageJson[section]) {
+                            for (const [depName, depVersion] of Object.entries(packageJson[section])) {
+                                // Only store if it's a local dependency
+                                if (dependencyGraph.packages.has(depName)) {
+                                    depVersions.set(depName, depVersion as string);
+                                }
+                            }
+                        }
+                    }
+                    packageDependencyVersions.set(pkgName, depVersions);
+                } catch {
+                    // If we can't read the package.json, just skip
+                }
+            }
+        }
+
+        // Group packages by their dependency level for visualization
+        const packageLevels = new Map<string, number>();
+        const calculateLevel = (pkgName: string, visited: Set<string> = new Set()): number => {
+            if (visited.has(pkgName)) return 0;
+            visited.add(pkgName);
+
+            const deps = dependencyGraph.edges.get(pkgName) || new Set();
+            if (deps.size === 0) return 0;
+
+            let maxDepLevel = 0;
+            for (const dep of deps) {
+                maxDepLevel = Math.max(maxDepLevel, calculateLevel(dep, visited) + 1);
+            }
+            return maxDepLevel;
+        };
+
+        // Calculate levels for all packages
+        for (const pkgName of buildOrder) {
+            packageLevels.set(pkgName, calculateLevel(pkgName));
+        }
+
+        // Group packages by level
+        const levelGroups = new Map<number, string[]>();
+        for (const [pkgName, level] of packageLevels) {
+            if (!levelGroups.has(level)) {
+                levelGroups.set(level, []);
+            }
+            levelGroups.get(level)!.push(pkgName);
+        }
+
+        // Sort levels for display
+        const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+
+        // Display output
+        logger.info('='.repeat(60));
+        logger.info('EXECUTION ORDER (topological sort)');
+        logger.info('='.repeat(60));
+        logger.info('');
+
+        for (const level of sortedLevels) {
+            const packages = levelGroups.get(level)!;
+            const levelLabel = level === 0 ? 'Level 0 (no local dependencies)' : `Level ${level}`;
+            logger.info(`--- ${levelLabel} ---`);
+
+            for (const pkgName of packages) {
+                const pkgInfo = dependencyGraph.packages.get(pkgName);
+                const localDeps = dependencyGraph.edges.get(pkgName) || new Set();
+                const version = pkgInfo?.version || 'unknown';
+                const depVersions = packageDependencyVersions.get(pkgName);
+
+                logger.info(`  ${pkgName}@${version}`);
+
+                if (localDeps.size > 0 && depVersions) {
+                    const depsWithVersions = Array.from(localDeps).map(dep => {
+                        const depVersion = depVersions.get(dep) || '?';
+                        return `${dep}@${depVersion}`;
+                    });
+                    logger.info(`    └─ depends on: ${depsWithVersions.join(', ')}`);
+                } else if (localDeps.size > 0) {
+                    logger.info(`    └─ depends on: ${Array.from(localDeps).join(', ')}`);
+                }
+
+                if (pkgInfo) {
+                    logger.verbose(`    path: ${pkgInfo.path}`);
+                }
+            }
+            logger.info('');
+        }
+
+        logger.info('='.repeat(60));
+        logger.info('SUMMARY');
+        logger.info('='.repeat(60));
+        logger.info(`Total packages: ${buildOrder.length}`);
+        logger.info(`Dependency levels: ${sortedLevels.length}`);
+        logger.info('');
+        logger.info('Sequential execution order:');
+        buildOrder.forEach((pkg, idx) => {
+            const pkgInfo = dependencyGraph.packages.get(pkg);
+            const version = pkgInfo?.version || 'unknown';
+            logger.info(`  ${idx + 1}. ${pkg}@${version}`);
+        });
+
+        return `Analyzed ${buildOrder.length} packages across ${sortedLevels.length} dependency levels`;
+    }
+
     // Handle audit-branches command
     if (runConfig.tree?.auditBranches) {
         logger.info('🔍 Auditing branch state across all packages...');
@@ -1513,7 +1651,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
     // Check if we're in built-in command mode (tree command with second argument)
     const builtInCommand = runConfig.tree?.builtInCommand;
-    const supportedBuiltInCommands = ['commit', 'release', 'publish', 'link', 'unlink', 'development', 'branches', 'run', 'checkout', 'updates', 'precommit'];
+    const supportedBuiltInCommands = ['commit', 'release', 'publish', 'link', 'unlink', 'development', 'branches', 'run', 'checkout', 'updates', 'precommit', 'pull'];
 
     if (builtInCommand && !supportedBuiltInCommands.includes(builtInCommand)) {
         throw new Error(`Unsupported built-in command: ${builtInCommand}. Supported commands: ${supportedBuiltInCommands.join(', ')}`);
@@ -1897,10 +2035,12 @@ export const execute = async (runConfig: Config): Promise<string> => {
                 BOLD: '\x1b[1m'
             };
 
-            // Check if terminal supports ANSI
+            // Check if terminal supports ANSI (and we're not in MCP server mode)
+            // In MCP mode, all stdout must be valid JSON-RPC, so disable progress display
             const supportsAnsi = process.stdout.isTTY &&
                                   process.env.TERM !== 'dumb' &&
-                                  !process.env.NO_COLOR;
+                                  !process.env.NO_COLOR &&
+                                  process.env.KODRDRIV_MCP_SERVER !== 'true';
 
             const totalPackages = buildOrder.length;
             const concurrency = 5; // Process up to 5 packages at a time
@@ -2462,6 +2602,8 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
             // Publish command options (pass self-reflection - publish reads other release config from config file)
             if (builtInCommand === 'publish') {
+                // Note: --skip-link-cleanup option removed as it's not supported in publish command
+                // commandSpecificOptions += ' --skip-link-cleanup';
                 if (runConfig.release?.selfReflection) {
                     commandSpecificOptions += ' --self-reflection';
                 }
@@ -2474,6 +2616,11 @@ export const execute = async (runConfig: Config): Promise<string> => {
             // Unlink command options
             if (builtInCommand === 'unlink' && runConfig.tree?.cleanNodeModules) {
                 commandSpecificOptions += ' --clean-node-modules';
+            }
+
+            // Precommit command options
+            if (builtInCommand === 'precommit' && runConfig.tree?.fix) {
+                commandSpecificOptions += ' --fix';
             }
 
             // Link/Unlink externals
@@ -2506,6 +2653,29 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     logger.error('');
                     throw new Error('Script validation failed. See details above.');
                 }
+            }
+
+            // Validate precommit script exists in all packages for precommit built-in command
+            if (builtInCommand === 'precommit') {
+                logger.info('🔍 Validating all packages have a "precommit" script...');
+                const validation = await validateScripts(dependencyGraph.packages, ['precommit']);
+
+                if (!validation.valid) {
+                    logger.error('');
+                    logger.error('❌ Precommit validation failed. The following packages are missing a "precommit" script:');
+                    logger.error('');
+                    for (const [packageName] of validation.missingScripts) {
+                        logger.error(`   - ${packageName}`);
+                    }
+                    logger.error('');
+                    logger.error('💡 To fix this, add a "precommit" script to each package.json, for example:');
+                    logger.error('   "scripts": {');
+                    logger.error('     "precommit": "npm run clean && npm run build && npm run lint && npm run test"');
+                    logger.error('   }');
+                    logger.error('');
+                    throw new Error('Precommit validation failed. All packages must have a "precommit" script.');
+                }
+                logger.info('✅ All packages have a "precommit" script');
             }
 
             // Validate command for parallel execution if parallel mode is enabled
@@ -2677,11 +2847,25 @@ export const execute = async (runConfig: Config): Promise<string> => {
                 createParallelProgressLogger(adapter.getPool(), runConfig);
 
                 // Execute
-                const result = await adapter.execute();
+                try {
+                    const result = await adapter.execute();
 
-                // Format and return result
-                const formattedResult = formatParallelResult(result);
-                return formattedResult;
+                    // Format and return result
+                    const formattedResult = formatParallelResult(result);
+                    return formattedResult;
+                } catch (parallelError: any) {
+                    // Enhance parallel execution errors with context
+                    // Check if the error already has package context
+                    if (!parallelError.packageName && parallelError.message) {
+                        // Try to extract package name from error message
+                        const packageMatch = parallelError.message.match(/package[:\s]+([@\w/-]+)/i);
+                        if (packageMatch) {
+                            parallelError.packageName = packageMatch[1];
+                        }
+                    }
+                    // Re-throw to be caught by outer handler
+                    throw parallelError;
+                }
             }
 
             // Sequential execution
@@ -2697,6 +2881,16 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
                 const packageInfo = dependencyGraph.packages.get(packageName)!;
                 const packageLogger = createPackageLogger(packageName, i + 1, buildOrder.length, isDryRun);
+
+                // Call onPackageFocus callback if provided
+                if ((runConfig.tree as any)?.onPackageFocus) {
+                    try {
+                        await Promise.resolve((runConfig.tree as any).onPackageFocus(packageName, i, buildOrder.length));
+                    } catch (error: any) {
+                        // Log but don't fail execution if callback errors
+                        logger.warn(`onPackageFocus callback failed for ${packageName}: ${error.message}`);
+                    }
+                }
 
                 const result = await executePackage(
                     packageName,
@@ -2805,7 +2999,15 @@ export const execute = async (runConfig: Config): Promise<string> => {
                         logger.error(`   What failed: ${result.error?.message || 'Unknown error'}`);
                         logger.error('');
 
-                        throw new Error(`Command failed in package ${packageName}`);
+                        // Create error with package context
+                        const executionError: any = new Error(`Command failed in package ${packageName}`);
+                        executionError.packageName = packageName;
+                        executionError.path = packageInfo.path;
+                        executionError.error = result.error;
+                        executionError.command = commandToRun;
+                        executionError.position = i + 1;
+                        executionError.total = buildOrder.length;
+                        throw executionError;
                     }
                     break;
                 }
@@ -2840,9 +3042,98 @@ export const execute = async (runConfig: Config): Promise<string> => {
         return returnOutput;
 
     } catch (error: any) {
-        const errorMessage = `Failed to analyze workspace: ${error.message}`;
-        logger.error(errorMessage);
-        throw new Error(errorMessage);
+        // Determine if this is an execution error or workspace analysis error
+        const errorMessage = error.message || String(error);
+        const errorStack = error.stack || '';
+
+        // Check if this is an execution error (thrown during package execution)
+        const isExecutionError = errorMessage.includes('Command failed in package') ||
+                                 errorMessage.includes('Execution failed') ||
+                                 errorMessage.includes('Package execution failed') ||
+                                 errorStack.includes('executePackage') ||
+                                 errorStack.includes('TreeExecutionAdapter') ||
+                                 errorStack.includes('DynamicTaskPool') ||
+                                 error.packageName; // Errors thrown from executePackage include packageName
+
+        if (isExecutionError) {
+            // This is an execution error, not a workspace analysis error
+            // Preserve the original error message and add context
+            let enhancedMessage = errorMessage;
+
+            // Add package context if available
+            if (error.packageName) {
+                enhancedMessage += `\n\nFailed in package: ${error.packageName}`;
+            }
+            if (error.path) {
+                enhancedMessage += `\n\nFailed at path: ${error.path}`;
+            }
+
+            // Include the original error details if different from message
+            if (error.error?.message && error.error.message !== errorMessage) {
+                enhancedMessage += `\n\nOriginal error: ${error.error.message}`;
+            }
+
+            // Add execution-specific hints
+            enhancedMessage += '\n\nThis error occurred during package execution, not workspace analysis.';
+            enhancedMessage += '\nPossible causes:';
+            enhancedMessage += '\n• The command failed in the specified package';
+            enhancedMessage += '\n• Check the package logs for detailed error information';
+            enhancedMessage += '\n• Verify the package can run the command successfully when executed directly';
+
+            logger.error(enhancedMessage);
+            if (error.stack && logger.debug) {
+                logger.debug('Full error stack:', error.stack);
+            }
+            // Re-throw with enhanced message but preserve the original error structure
+            const enhancedError = new Error(enhancedMessage);
+            enhancedError.stack = error.stack;
+            if (error.packageName) (enhancedError as any).packageName = error.packageName;
+            if (error.path) (enhancedError as any).path = error.path;
+            throw enhancedError;
+        }
+
+        // This is a workspace analysis error
+        let analysisErrorMessage = `Failed to analyze workspace: ${errorMessage}`;
+
+        // Add context about what might have caused the failure
+        const isPackageJsonError = errorMessage.includes('package.json') || errorStack.includes('package.json');
+        const isDependencyError = errorMessage.includes('dependency') || errorStack.includes('dependency');
+        const isGraphError = errorMessage.includes('graph') || errorStack.includes('buildDependencyGraph');
+
+        const contextHints: string[] = [];
+
+        if (isPackageJsonError) {
+            contextHints.push('• Invalid or unparseable package.json files may be present');
+            contextHints.push('• Uncommitted changes to package.json files may cause analysis issues');
+        }
+
+        if (isDependencyError || isGraphError) {
+            contextHints.push('• Circular dependencies or invalid dependency references may exist');
+            contextHints.push('• Missing or incorrect dependency versions in package.json files');
+        }
+
+        // Always include general hints
+        contextHints.push('• Uncommitted changes may interfere with workspace analysis');
+        contextHints.push('• Check that all package.json files are valid JSON');
+        contextHints.push('• Verify that all referenced dependencies exist in the workspace');
+
+        if (contextHints.length > 0) {
+            analysisErrorMessage += '\n\nPossible causes:\n' + contextHints.join('\n');
+        }
+
+        // Include the original error details if available
+        if (error.packageName) {
+            analysisErrorMessage += `\n\nFailed in package: ${error.packageName}`;
+        }
+        if (error.path) {
+            analysisErrorMessage += `\n\nFailed at path: ${error.path}`;
+        }
+
+        logger.error(analysisErrorMessage);
+        if (error.stack && logger.debug) {
+            logger.debug('Full error stack:', error.stack);
+        }
+        throw new Error(analysisErrorMessage);
     } finally {
         // Intentionally preserve the mutex across executions to support multiple runs in the same process (e.g., test suite)
         // Do not destroy here; the process lifecycle will clean up resources.
