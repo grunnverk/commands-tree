@@ -42,13 +42,13 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@eldrforge/ai-service": "^0.1.22",
-    "@eldrforge/core": "^0.1.4",
-    "@eldrforge/commands-git": "^0.1.5",
-    "@eldrforge/tree-core": "^0.1.8",
-    "@eldrforge/tree-execution": "^0.1.8",
-    "@eldrforge/git-tools": "^0.1.22",
-    "@eldrforge/github-tools": "^0.1.21",
+    "@eldrforge/ai-service": "^1.0.0",
+    "@eldrforge/core": "^1.0.0",
+    "@eldrforge/commands-git": "^1.0.0",
+    "@eldrforge/tree-core": "^1.0.0",
+    "@eldrforge/tree-execution": "^1.0.0",
+    "@eldrforge/git-tools": "^1.0.0",
+    "@eldrforge/github-tools": "^1.0.0",
     "@eldrforge/shared": "^0.1.10"
   },
   "devDependencies": {
