@@ -3,9 +3,9 @@ import { isNpmInstallNeeded } from '../../src/util/npmOptimizations';
 
 const mockLogger = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), verbose: vi.fn() };
 
-vi.mock('@eldrforge/core', () => ({ getLogger: () => mockLogger }));
-vi.mock('@eldrforge/git-tools', () => ({ run: vi.fn().mockResolvedValue({ stdout: '' }) }));
-vi.mock('@eldrforge/commands-git', () => ({ PerformanceTimer: { start: () => ({ end: vi.fn() }) } }));
+vi.mock('@grunnverk/core', () => ({ getLogger: () => mockLogger }));
+vi.mock('@grunnverk/git-tools', () => ({ run: vi.fn().mockResolvedValue({ stdout: '' }) }));
+vi.mock('@grunnverk/commands-git', () => ({ PerformanceTimer: { start: () => ({ end: vi.fn() }) } }));
 
 describe('npm optimizations', () => {
     it('checks if install needed', async () => {
