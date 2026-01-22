@@ -1,6 +1,6 @@
-import { getLogger } from '@eldrforge/core';
-import { run } from '@eldrforge/git-tools';
-import { PerformanceTimer } from '@eldrforge/commands-git';
+import { getLogger } from '@grunnverk/core';
+import { run } from '@grunnverk/git-tools';
+import { PerformanceTimer } from '@grunnverk/commands-git';
 
 // Check if npm install is needed by examining lock file and node_modules
 export const isNpmInstallNeeded = async (storage: any): Promise<{ needed: boolean; reason: string }> => {
@@ -52,7 +52,7 @@ export const optimizedNpmInstall = async (options: {
     verbose?: boolean;
 } = {}): Promise<{ duration: number; skipped: boolean; reason: string }> => {
     const logger = getLogger();
-    const { createStorage } = await import('@eldrforge/shared');
+    const { createStorage } = await import('@grunnverk/shared');
     const storage = createStorage();
 
     const {
@@ -108,7 +108,7 @@ export const optimizedNpmInstall = async (options: {
 // Helper to run npm ci if package-lock.json is available (faster than npm install)
 export const tryNpmCi = async (): Promise<{ success: boolean; duration?: number }> => {
     const logger = getLogger();
-    const { createStorage } = await import('@eldrforge/shared');
+    const { createStorage } = await import('@grunnverk/shared');
     const storage = createStorage();
 
     try {

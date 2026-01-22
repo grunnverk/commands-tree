@@ -1,4 +1,4 @@
-# @eldrforge/commands-tree - Agentic Guide
+# @grunnverk/commands-tree - Agentic Guide
 
 ## Purpose
 
@@ -14,10 +14,10 @@ Tree and dependency management commands for kodrdriv monorepo workflows.
 
 ## Dependencies
 
-- @eldrforge/core - Shared infrastructure
-- @eldrforge/commands-git - Git commands (for tree commit)
-- @eldrforge/tree-core - Dependency graph analysis
-- @eldrforge/tree-execution - Parallel execution engine
+- @grunnverk/core - Shared infrastructure
+- @grunnverk/commands-git - Git commands (for tree commit)
+- @grunnverk/tree-core - Dependency graph analysis
+- @grunnverk/tree-execution - Parallel execution engine
 
 ## Package Structure
 

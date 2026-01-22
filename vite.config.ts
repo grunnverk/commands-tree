@@ -67,12 +67,12 @@ export default defineConfig({
                 'child_process',
                 'util',
                 // External packages
-                '@eldrforge/core',
-                '@eldrforge/commands-git',
-                '@eldrforge/tree-core',
-                '@eldrforge/tree-execution',
-                '@eldrforge/git-tools',
-                '@eldrforge/shared',
+                '@grunnverk/core',
+                '@grunnverk/commands-git',
+                '@grunnverk/tree-core',
+                '@grunnverk/tree-execution',
+                '@grunnverk/git-tools',
+                '@grunnverk/shared',
             ],
         },
         // Make sure Vite generates ESM-compatible code

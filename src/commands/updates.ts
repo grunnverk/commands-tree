@@ -23,9 +23,9 @@
  *   kodrdriv updates --analyze --strategy conservative  # Use conservative upgrade strategy
  */
 
-import { getDryRunLogger, Config, toAIConfig, createStorageAdapter, createLoggerAdapter } from '@eldrforge/core';
-import { run, safeJsonParse } from '@eldrforge/git-tools';
-import { createStorage } from '@eldrforge/shared';
+import { getDryRunLogger, Config, toAIConfig, createStorageAdapter, createLoggerAdapter } from '@grunnverk/core';
+import { run, safeJsonParse } from '@grunnverk/git-tools';
+import { createStorage } from '@grunnverk/shared';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -701,7 +701,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
     const logger = getDryRunLogger(isDryRun);
 
     // Check if this is report or analyze mode
-    // Note: 'report', 'analyze', 'scopes', 'strategy' are new config options that may not be in the published @eldrforge/core yet
+    // Note: 'report', 'analyze', 'scopes', 'strategy' are new config options that may not be in the published @grunnverk/core yet
     const updatesConfig = runConfig.updates as {
         report?: boolean;
         analyze?: boolean;
@@ -725,7 +725,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
         try {
             // Dynamically import ai-service to avoid dependency issues
-            const { runAgenticDependencyAnalysis, formatDependencyAnalysisReport } = await import('@eldrforge/ai-service');
+            const { runAgenticDependencyAnalysis, formatDependencyAnalysisReport } = await import('@grunnverk/ai-service');
 
             // Collect report data for the AI
             const reportData = await collectReportData(logger);
@@ -820,7 +820,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
             '  updates:\n' +
             '    scopes:\n' +
             '      - "@riotprompt"\n' +
-            '      - "@eldrforge"\n\n' +
+            '      - "@grunnverk"\n\n' +
             'Or use publish.scopedDependencyUpdates for tree publish integration.'
         );
     }

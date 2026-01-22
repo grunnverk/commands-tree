@@ -12,9 +12,9 @@
 
 import path from 'path';
 import fs from 'fs/promises';
-import { getLogger, Config } from '@eldrforge/core';
-import { createStorage } from '@eldrforge/shared';
-import { safeJsonParse, validatePackageJson } from '@eldrforge/git-tools';
+import { getLogger, Config } from '@grunnverk/core';
+import { createStorage } from '@grunnverk/shared';
+import { safeJsonParse, validatePackageJson } from '@grunnverk/git-tools';
 
 
 // Simplified package info for version management (distinct from tree-core's PackageInfo)
@@ -77,7 +77,7 @@ const discoverPackages = async (
 };
 
 /**
- * Extract scope from package name (e.g., "@eldrforge/package" -> "@eldrforge")
+ * Extract scope from package name (e.g., "@grunnverk/package" -> "@grunnverk")
  */
 const getPackageScope = (packageName: string): string | null => {
     if (packageName.startsWith('@')) {

@@ -1,5 +1,5 @@
-import { run } from '@eldrforge/git-tools';
-import { getLogger, getGitRepositoryRoot, isInGitRepository } from '@eldrforge/core';
+import { run } from '@grunnverk/git-tools';
+import { getLogger, getGitRepositoryRoot, isInGitRepository } from '@grunnverk/core';
 
 export interface BranchStatus {
     name: string;
@@ -146,7 +146,7 @@ export async function checkBranchStatus(
         if (checkPR) {
             try {
                 logger.verbose(`    Checking GitHub for existing PRs...`);
-                const { findOpenPullRequestByHeadRef } = await import('@eldrforge/github-tools');
+                const { findOpenPullRequestByHeadRef } = await import('@grunnverk/github-tools');
                 const pr = await (findOpenPullRequestByHeadRef as any)(branch, packagePath);
                 if (pr) {
                     hasOpenPR = true;
@@ -453,7 +453,7 @@ export async function auditBranchState(
         // Check version consistency if enabled
         if (checkVersions) {
             try {
-                const { validateVersionForBranch } = await import('@eldrforge/core');
+                const { validateVersionForBranch } = await import('@grunnverk/core');
                 const fs = await import('fs/promises');
                 const pathModule = await import('path');
 

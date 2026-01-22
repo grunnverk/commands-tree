@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Config } from '@eldrforge/core';
+import type { Config } from '@grunnverk/core';
 
 // Mock dependencies
-vi.mock('@eldrforge/core', () => ({
+vi.mock('@grunnverk/core', () => ({
     getLogger: vi.fn(() => ({
         info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), verbose: vi.fn()
     })),
@@ -12,13 +12,13 @@ vi.mock('@eldrforge/core', () => ({
     Config: {},
 }));
 
-vi.mock('@eldrforge/git-tools', () => ({
+vi.mock('@grunnverk/git-tools', () => ({
     run: vi.fn(() => ({ stdout: '' })),
     safeJsonParse: vi.fn((s) => JSON.parse(s)),
     validatePackageJson: vi.fn((p) => p),
 }));
 
-vi.mock('@eldrforge/commands-git', () => ({
+vi.mock('@grunnverk/commands-git', () => ({
     findAllPackageJsonFiles: vi.fn(() => [
         { path: `${process.cwd()}/package.json` }
     ]),
@@ -27,7 +27,7 @@ vi.mock('@eldrforge/commands-git', () => ({
     ]),
 }));
 
-vi.mock('@eldrforge/shared', () => ({
+vi.mock('@grunnverk/shared', () => ({
     createStorage: vi.fn(() => ({
         readFile: vi.fn(() => '{"name": "@test/pkg", "version": "1.0.0", "dependencies": {}}'),
         writeFile: vi.fn(),

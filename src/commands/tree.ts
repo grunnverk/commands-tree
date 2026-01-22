@@ -35,26 +35,26 @@
 import path from 'path';
 import fs from 'fs/promises';
 import child_process, { exec } from 'child_process';
-import { run, runSecure, safeJsonParse, validatePackageJson, getGitStatusSummary, getGloballyLinkedPackages, getLinkedDependencies, getLinkCompatibilityProblems } from '@eldrforge/git-tools';
+import { run, runSecure, safeJsonParse, validatePackageJson, getGitStatusSummary, getGloballyLinkedPackages, getLinkedDependencies, getLinkCompatibilityProblems } from '@grunnverk/git-tools';
 import util from 'util';
-import { getLogger, Config, getOutputPath, DEFAULT_OUTPUT_DIRECTORY, runGitWithLock, isInGitRepository } from '@eldrforge/core';
-import { createStorage } from '@eldrforge/shared';
-import * as Commit from '@eldrforge/commands-git';
+import { getLogger, Config, getOutputPath, DEFAULT_OUTPUT_DIRECTORY, runGitWithLock, isInGitRepository } from '@grunnverk/core';
+import { createStorage } from '@grunnverk/shared';
+import * as Commit from '@grunnverk/commands-git';
 import * as Link from './link';
 import * as Unlink from './unlink';
 import * as Updates from './updates';
 import type {
     PackageInfo,
     DependencyGraph
-} from '@eldrforge/tree-core';
+} from '@grunnverk/tree-core';
 import {
     scanForPackageJsonFiles,
     parsePackageJson,
     buildDependencyGraph,
     topologicalSort,
     shouldExclude
-} from '@eldrforge/tree-core';
-import { optimizePrecommitCommand, recordTestRun, PerformanceTimer } from '@eldrforge/commands-git';
+} from '@grunnverk/tree-core';
+import { optimizePrecommitCommand, recordTestRun, PerformanceTimer } from '@grunnverk/commands-git';
 
 // Track published versions during tree publish
 interface PublishedVersion {
@@ -85,7 +85,7 @@ export const __resetGlobalState = () => {
 };
 
 // Import shared mutex implementation from tree-execution
-import { SimpleMutex } from '@eldrforge/tree-execution';
+import { SimpleMutex } from '@grunnverk/tree-execution';
 
 const globalStateMutex = new SimpleMutex();
 
@@ -1433,7 +1433,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
         }));
 
         const { auditBranchState, formatAuditResults } = await import('../utils/branchState');
-        const { getRemoteDefaultBranch } = await import('@eldrforge/git-tools');
+        const { getRemoteDefaultBranch } = await import('@grunnverk/git-tools');
 
         // For publish workflows, check branch consistency, merge conflicts, and existing PRs
         // Don't pass an expected branch - let the audit find the most common branch
@@ -1476,7 +1476,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
     }
 
     // Handle parallel execution recovery commands
-    const { loadRecoveryManager } = await import('@eldrforge/tree-execution');
+    const { loadRecoveryManager } = await import('@grunnverk/tree-execution');
 
     // Handle status-parallel command
     if (runConfig.tree?.statusParallel) {
@@ -2680,7 +2680,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
             // Validate command for parallel execution if parallel mode is enabled
             if (runConfig.tree?.parallel) {
-                const { CommandValidator } = await import('@eldrforge/tree-execution');
+                const { CommandValidator } = await import('@grunnverk/tree-execution');
                 const validation = CommandValidator.validateForParallel(commandToRun, builtInCommand);
 
                 CommandValidator.logValidation(validation);
@@ -2823,7 +2823,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
                 }
 
                 // Import parallel execution components
-                const { TreeExecutionAdapter, createParallelProgressLogger, formatParallelResult } = await import('@eldrforge/tree-execution');
+                const { TreeExecutionAdapter, createParallelProgressLogger, formatParallelResult } = await import('@grunnverk/tree-execution');
                 const os = await import('os');
 
                 // Create task pool

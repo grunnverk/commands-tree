@@ -1,6 +1,6 @@
 {
-  "name": "@eldrforge/commands-tree",
-  "version": "1.0.0",
+  "name": "@grunnverk/commands-tree",
+  "version": "1.5.0",
   "description": "Tree and dependency management commands for kodrdriv",
   "main": "dist/index.js",
   "type": "module",
@@ -42,14 +42,14 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@eldrforge/ai-service": "^1.0.0",
-    "@eldrforge/core": "^1.0.0",
-    "@eldrforge/commands-git": "^1.0.0",
-    "@eldrforge/tree-core": "^1.0.0",
-    "@eldrforge/tree-execution": "^1.0.0",
-    "@eldrforge/git-tools": "^1.0.0",
-    "@eldrforge/github-tools": "^1.0.0",
-    "@eldrforge/shared": "^0.1.10"
+    "@grunnverk/ai-service": "^1.5.0",
+    "@grunnverk/core": "^1.5.0",
+    "@grunnverk/commands-git": "^1.5.0",
+    "@grunnverk/tree-core": "^1.5.0",
+    "@grunnverk/tree-execution": "^1.5.0",
+    "@grunnverk/git-tools": "^1.5.0",
+    "@grunnverk/github-tools": "^1.5.0",
+    "@grunnverk/shared": "^1.5.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

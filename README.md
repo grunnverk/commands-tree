@@ -1,17 +1,17 @@
-# @eldrforge/commands-tree
+# @grunnverk/commands-tree
 
 Tree and dependency management commands for kodrdriv.
 
 ## Installation
 
 ```bash
-npm install @eldrforge/commands-tree
+npm install @grunnverk/commands-tree
 ```
 
 ## Usage
 
 ```typescript
-import * as Tree from '@eldrforge/commands-tree';
+import * as Tree from '@grunnverk/commands-tree';
 
 // Link workspace packages
 await Tree.link(config);

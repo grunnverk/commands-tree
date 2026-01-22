@@ -1,7 +1,7 @@
-import { getDryRunLogger, getLogger, Config } from '@eldrforge/core';
-import { createStorage } from '@eldrforge/shared';
-import { run, runSecure, safeJsonParse, validatePackageJson } from '@eldrforge/git-tools';
-import { findAllPackageJsonFiles } from '@eldrforge/commands-git';
+import { getDryRunLogger, getLogger, Config } from '@grunnverk/core';
+import { createStorage } from '@grunnverk/shared';
+import { run, runSecure, safeJsonParse, validatePackageJson } from '@grunnverk/git-tools';
+import { findAllPackageJsonFiles } from '@grunnverk/commands-git';
 import fs from 'fs/promises';
 import path from 'path';
 
