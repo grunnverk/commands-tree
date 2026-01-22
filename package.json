@@ -49,7 +49,7 @@
     "@grunnverk/tree-execution": "^1.5.0",
     "@grunnverk/git-tools": "^1.5.0",
     "@grunnverk/github-tools": "^1.5.0",
-    "@grunnverk/shared": "^1.5.0"
+    "@grunnverk/shared": "^1.5.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
