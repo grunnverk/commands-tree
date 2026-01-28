@@ -9,3 +9,7 @@ export { execute as versions } from './commands/versions';
 export * from './util/npmOptimizations';
 export * from './util/performanceTracker';
 
+// Package execution context for isolation (re-exported from tree-execution)
+export { PackageExecutionContext, PackageContextFactory } from '@grunnverk/tree-execution';
+export type { PackageContextOptions, RepositoryInfo } from '@grunnverk/tree-execution';
+

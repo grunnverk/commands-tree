@@ -1,6 +1,6 @@
 {
   "name": "@grunnverk/commands-tree",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Tree and dependency management commands for kodrdriv",
   "main": "dist/index.js",
   "type": "module",
@@ -26,7 +26,7 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "clean": "rm -rf dist",
-    "precommit": "npm run clean && npm run build && npm run lint && npm run test",
+    "precommit": "npm run lint && npm run build && npm run test",
     "prepublishOnly": "npm run clean && npm run lint && npm run build && npm run test"
   },
   "keywords": [
@@ -42,14 +42,14 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@grunnverk/ai-service": "^1.5.0",
-    "@grunnverk/core": "^1.5.0",
-    "@grunnverk/commands-git": "^1.5.0",
-    "@grunnverk/tree-core": "^1.5.0",
-    "@grunnverk/tree-execution": "^1.5.0",
-    "@grunnverk/git-tools": "^1.5.0",
-    "@grunnverk/github-tools": "^1.5.0",
-    "@grunnverk/shared": "^1.5.2"
+    "@grunnverk/ai-service": "^1.5.1",
+    "@grunnverk/core": "^1.5.2",
+    "@grunnverk/commands-git": "^1.5.1",
+    "@grunnverk/tree-core": "^1.5.1",
+    "@grunnverk/tree-execution": "^1.5.1",
+    "@grunnverk/git-tools": "^1.5.1",
+    "@grunnverk/github-tools": "^1.5.1",
+    "@grunnverk/shared": "^1.5.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
