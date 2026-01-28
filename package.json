@@ -26,7 +26,7 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "clean": "rm -rf dist",
-    "precommit": "npm run clean && npm run build && npm run lint && npm run test",
+    "precommit": "npm run lint && npm run build && npm run test",
     "prepublishOnly": "npm run clean && npm run lint && npm run build && npm run test"
   },
   "keywords": [
