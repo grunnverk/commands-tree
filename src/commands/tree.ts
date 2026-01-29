@@ -35,7 +35,7 @@
 import path from 'path';
 import fs from 'fs/promises';
 import child_process, { exec } from 'child_process';
-import { run, runSecure, safeJsonParse, validatePackageJson, getGitStatusSummary, getGloballyLinkedPackages, getLinkedDependencies, getLinkCompatibilityProblems } from '@grunnverk/git-tools';
+import { run, runSecure, safeJsonParse, validatePackageJson, getGitStatusSummary, getGloballyLinkedPackages, getLinkedDependencies, getLinkCompatibilityProblems, escapeShellArg } from '@grunnverk/git-tools';
 import util from 'util';
 import { getLogger, Config, getOutputPath, DEFAULT_OUTPUT_DIRECTORY, runGitWithLock, isInGitRepository } from '@grunnverk/core';
 import { createStorage } from '@grunnverk/shared';
@@ -2528,7 +2528,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     commandSpecificOptions += ` --context "${runConfig.commit.context}"`;
                 }
                 if (runConfig.commit?.contextFiles && runConfig.commit.contextFiles.length > 0) {
-                    commandSpecificOptions += ` --context-files ${runConfig.commit.contextFiles.join(' ')}`;
+                    commandSpecificOptions += ` --context-files ${runConfig.commit.contextFiles.map(f => escapeShellArg(f)).join(' ')}`;
                 }
                 // Push option can be boolean or string (remote name)
                 if (runConfig.commit?.push) {
@@ -2574,7 +2574,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     commandSpecificOptions += ` --context "${runConfig.release.context}"`;
                 }
                 if (runConfig.release?.contextFiles && runConfig.release.contextFiles.length > 0) {
-                    commandSpecificOptions += ` --context-files ${runConfig.release.contextFiles.join(' ')}`;
+                    commandSpecificOptions += ` --context-files ${runConfig.release.contextFiles.map(f => escapeShellArg(f)).join(' ')}`;
                 }
                 if (runConfig.release?.messageLimit) {
                     commandSpecificOptions += ` --message-limit ${runConfig.release.messageLimit}`;
@@ -2625,7 +2625,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
             // Link/Unlink externals
             if ((builtInCommand === 'link' || builtInCommand === 'unlink') && runConfig.tree?.externals && runConfig.tree.externals.length > 0) {
-                commandSpecificOptions += ` --externals ${runConfig.tree.externals.join(' ')}`;
+                commandSpecificOptions += ` --externals ${runConfig.tree.externals.map(e => escapeShellArg(e)).join(' ')}`;
             }
 
             commandToRun = `kodrdriv ${builtInCommand}${optionsString}${packageArgString}${commandSpecificOptions}`;
