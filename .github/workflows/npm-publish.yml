@@ -53,7 +53,9 @@ jobs:
           fi
       - name: Update package.json version for pre-release
         if: steps.npm-tag.outputs.should_publish == 'true' && steps.npm-tag.outputs.tag == 'dev'
-        run: npm version ${{ steps.npm-tag.outputs.version }} --no-git-tag-version
+        run: |
+          node -e "const pkg = require('./package.json'); pkg.version = '${{ steps.npm-tag.outputs.version }}'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          echo "Updated package.json to version ${{ steps.npm-tag.outputs.version }}"
       - name: Publish to npm
         if: steps.npm-tag.outputs.should_publish == 'true'
         run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
