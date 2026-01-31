@@ -30,20 +30,30 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           IS_RELEASE="${{ github.event_name == 'release' }}"
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
 
           if [[ "$VERSION" == *"-"* ]]; then
             echo "tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
+            # Add git SHA to pre-release version
+            NEW_VERSION="${VERSION}+${SHORT_SHA}"
+            echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+            echo "📦 Publishing pre-release version: ${NEW_VERSION}"
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
             # Only publish production versions on release events
             if [[ "$IS_RELEASE" == "true" ]]; then
               echo "should_publish=true" >> $GITHUB_OUTPUT
+              echo "📦 Publishing production version: ${VERSION}"
             else
               echo "should_publish=false" >> $GITHUB_OUTPUT
               echo "⚠️  Skipping publish: Production version detected on non-release push"
             fi
           fi
+      - name: Update package.json version for pre-release
+        if: steps.npm-tag.outputs.should_publish == 'true' && steps.npm-tag.outputs.tag == 'dev'
+        run: npm version ${{ steps.npm-tag.outputs.version }} --no-git-tag-version
       - name: Publish to npm
         if: steps.npm-tag.outputs.should_publish == 'true'
         run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
