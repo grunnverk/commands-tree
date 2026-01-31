@@ -1,11 +1,11 @@
-# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
-
 name: Node.js Package (npm)
 
 on:
   release:
     types: [created]
+  push:
+    branches:
+      - working
 
 permissions:
   contents: write
@@ -13,29 +13,7 @@ permissions:
   id-token: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Install dependencies
-        run: |
-          # Use public npm registry (package-lock.json is gitignored)
-          npm config set registry https://registry.npmjs.org/
-          # Clean install to ensure platform-specific optional deps (rollup native bindings) are resolved correctly
-          # See: https://github.com/npm/cli/issues/4828
-          rm -rf node_modules package-lock.json
-          npm install --force
-        timeout-minutes: 10
-      - run: npm run lint
-      - run: npm run build
-      - run: npm run test
-
   publish-npm:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -44,16 +22,16 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
-      - name: Update npm
-        run: npm install -g npm@latest
-      - name: Install dependencies
-        run: |
-          # Use public npm registry (package-lock.json is gitignored)
-          npm config set registry https://registry.npmjs.org/
-          # Clean install to ensure platform-specific optional deps (rollup native bindings) are resolved correctly
-          # See: https://github.com/npm/cli/issues/4828
-          rm -rf node_modules package-lock.json
-          npm install --force
+      - run: npm install -g npm@latest
+      - run: npm install --verbose --foreground-scripts
         timeout-minutes: 10
-      - run: npm publish --access public
-
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *"-"* ]]; then
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+      - run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
