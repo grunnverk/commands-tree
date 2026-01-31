@@ -1,6 +1,6 @@
 {
   "name": "@grunnverk/commands-tree",
-  "version": "1.5.6",
+  "version": "1.5.7-dev.0",
   "description": "Tree and dependency management commands for kodrdriv",
   "main": "dist/index.js",
   "type": "module",
