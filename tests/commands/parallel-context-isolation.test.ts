@@ -166,8 +166,8 @@ describe('Parallel Context Isolation', () => {
     describe('real-world scenario simulation', () => {
         it('should handle the bug scenario: multiple packages in parallel', () => {
             // This simulates the actual bug we're fixing:
-            // - Package 1 is @riotprompt/agentic in kjerneverk/agentic
-            // - Package 2 is @riotprompt/execution in kjerneverk/execution-openai
+            // - Package 1 is @kjerneverk/agentic in kjerneverk/agentic
+            // - Package 2 is @kjerneverk/execution in kjerneverk/execution-openai
             // - Bug: Both packages tried to use execution-openai repository
             
             // Setup: Create repos simulating the real scenario
@@ -179,16 +179,16 @@ describe('Parallel Context Isolation', () => {
             
             // Create contexts (this happens before parallel execution)
             const contexts = PackageContextFactory.createContexts([
-                { name: '@riotprompt/agentic', path: testDir1 },
-                { name: '@riotprompt/execution', path: testDir2 },
+                { name: '@kjerneverk/agentic', path: testDir1 },
+                { name: '@kjerneverk/execution', path: testDir2 },
             ]);
             
             // Verify: Each package has its own repository
-            const agenticCtx = contexts.get('@riotprompt/agentic')!;
+            const agenticCtx = contexts.get('@kjerneverk/agentic')!;
             expect(agenticCtx.repositoryName).toBe('agentic');
             expect(agenticCtx.repositoryOwner).toBe('kjerneverk');
             
-            const executionCtx = contexts.get('@riotprompt/execution')!;
+            const executionCtx = contexts.get('@kjerneverk/execution')!;
             expect(executionCtx.repositoryName).toBe('execution-openai');
             expect(executionCtx.repositoryOwner).toBe('kjerneverk');
             

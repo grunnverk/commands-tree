@@ -23,9 +23,9 @@ import { mkdtemp, rm, mkdir, writeFile } from 'fs/promises';
  * 
  * Evidence from real execution (2026-01-26):
  * ```
- * [2/8] @riotprompt/execution: ♻️  Reusing existing PR #13: 
+ * [2/8] @kjerneverk/execution: ♻️  Reusing existing PR #13: 
  *       https://github.com/kjerneverk/execution-openai/pull/13
- * [1/8] @riotprompt/agentic: Waiting for PR #13 checks to complete...
+ * [1/8] @kjerneverk/agentic: Waiting for PR #13 checks to complete...
  * error: POST /repos/kjerneverk/execution-openai/releases - 422
  * ```
  * 
@@ -123,26 +123,26 @@ describe('Parallel Execution Repository Context Bug', () => {
             date: '2026-01-26',
             command: 'npx kodrdriv tree publish --parallel',
             expectedBehavior: {
-                '@riotprompt/execution': 'kjerneverk/execution',
-                '@riotprompt/agentic': 'kjerneverk/agentic',
-                '@riotprompt/execution-openai': 'kjerneverk/execution-openai',
+                '@kjerneverk/execution': 'kjerneverk/execution',
+                '@kjerneverk/agentic': 'kjerneverk/agentic',
+                '@kjerneverk/execution-openai': 'kjerneverk/execution-openai',
             },
             actualBehavior: {
-                '@riotprompt/execution': 'kjerneverk/execution-openai',  // WRONG!
-                '@riotprompt/agentic': 'kjerneverk/execution-openai',     // WRONG!
-                '@riotprompt/execution-openai': 'kjerneverk/execution-openai', // Correct
+                '@kjerneverk/execution': 'kjerneverk/execution-openai',  // WRONG!
+                '@kjerneverk/agentic': 'kjerneverk/execution-openai',     // WRONG!
+                '@kjerneverk/execution-openai': 'kjerneverk/execution-openai', // Correct
             },
             errorMessage: 'POST /repos/kjerneverk/execution-openai/releases - 422'
         };
 
         // Verify that all packages have correct git remotes configured
         // (Bug is NOT in repository configuration, but in kodrdriv's parallel execution)
-        expect(bugEvidence.expectedBehavior['@riotprompt/execution']).toBe('kjerneverk/execution');
-        expect(bugEvidence.expectedBehavior['@riotprompt/agentic']).toBe('kjerneverk/agentic');
+        expect(bugEvidence.expectedBehavior['@kjerneverk/execution']).toBe('kjerneverk/execution');
+        expect(bugEvidence.expectedBehavior['@kjerneverk/agentic']).toBe('kjerneverk/agentic');
         
         // Document that actual behavior was incorrect
-        expect(bugEvidence.actualBehavior['@riotprompt/execution']).toBe('kjerneverk/execution-openai');
-        expect(bugEvidence.actualBehavior['@riotprompt/agentic']).toBe('kjerneverk/execution-openai');
+        expect(bugEvidence.actualBehavior['@kjerneverk/execution']).toBe('kjerneverk/execution-openai');
+        expect(bugEvidence.actualBehavior['@kjerneverk/agentic']).toBe('kjerneverk/execution-openai');
     });
 
     it('identifies failure points in parallel execution', () => {

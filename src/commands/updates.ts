@@ -819,7 +819,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
             'Or configure default scopes in your .kodrdriv/config.yml:\n' +
             '  updates:\n' +
             '    scopes:\n' +
-            '      - "@riotprompt"\n' +
+            '      - "@kjerneverk"\n' +
             '      - "@grunnverk"\n\n' +
             'Or use publish.scopedDependencyUpdates for tree publish integration.'
         );
