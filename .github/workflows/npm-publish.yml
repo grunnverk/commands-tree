@@ -30,7 +30,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           IS_RELEASE="${{ github.event_name == 'release' }}"
-          
+
           if [[ "$VERSION" == *"-"* ]]; then
             echo "tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
