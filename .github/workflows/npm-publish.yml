@@ -22,9 +22,6 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
-      - run: npm install -g npm@latest
-      - run: npm install --verbose --foreground-scripts
-        timeout-minutes: 10
       - name: Determine npm tag and publish strategy
         id: npm-tag
         run: |
@@ -53,6 +50,11 @@ jobs:
               echo "⚠️  Skipping publish: Production version detected on non-release push"
             fi
           fi
+      - run: npm install -g npm@latest
+        if: steps.npm-tag.outputs.should_publish == 'true'
+      - run: npm install --verbose --foreground-scripts
+        if: steps.npm-tag.outputs.should_publish == 'true'
+        timeout-minutes: 10
       - name: Update package.json version for pre-release
         if: steps.npm-tag.outputs.should_publish == 'true' && steps.npm-tag.outputs.tag == 'dev'
         run: |
