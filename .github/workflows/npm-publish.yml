@@ -31,12 +31,14 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           IS_RELEASE="${{ github.event_name == 'release' }}"
           SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
 
           if [[ "$VERSION" == *"-"* ]]; then
             echo "tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            # Add git SHA to pre-release version
-            NEW_VERSION="${VERSION}+${SHORT_SHA}"
+            # Add timestamp and SHA to pre-release version (e.g., 1.5.5-dev.0 -> 1.5.5-dev.20260131210612.ab169e2)
+            BASE_VERSION="${VERSION%%-*}"
+            NEW_VERSION="${BASE_VERSION}-dev.${TIMESTAMP}.${SHORT_SHA}"
             echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
             echo "📦 Publishing pre-release version: ${NEW_VERSION}"
           else
