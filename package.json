@@ -42,14 +42,14 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@grunnverk/ai-service": "^1.5.5",
-    "@grunnverk/core": "^1.5.9",
-    "@grunnverk/commands-git": "^1.5.9",
-    "@grunnverk/tree-core": "^1.5.3",
-    "@grunnverk/tree-execution": "^1.5.4",
-    "@grunnverk/git-tools": "^1.5.14",
-    "@grunnverk/github-tools": "^1.5.5",
-    "@grunnverk/shared": "^1.5.6"
+    "@grunnverk/ai-service": "^1.5.6",
+    "@grunnverk/core": "^1.5.10",
+    "@grunnverk/commands-git": "^1.5.10",
+    "@grunnverk/tree-core": "^1.5.4",
+    "@grunnverk/tree-execution": "^1.5.5",
+    "@grunnverk/git-tools": "^1.5.15",
+    "@grunnverk/github-tools": "^1.5.6",
+    "@grunnverk/shared": "^1.5.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
