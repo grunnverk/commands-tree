@@ -65,6 +65,7 @@ interface PublishedVersion {
 
 // Tree execution context for persistence
 interface TreeExecutionContext {
+    executionId: string;
     command: string;
     originalConfig: Config;
     publishedVersions: PublishedVersion[];
@@ -72,6 +73,28 @@ interface TreeExecutionContext {
     buildOrder: string[];
     startTime: Date;
     lastUpdateTime: Date;
+    continueCount: number;
+    events: TreeExecutionEvent[];
+}
+
+type TreeExecutionEventType =
+    | 'execution_started'
+    | 'execution_resumed'
+    | 'package_started'
+    | 'package_completed'
+    | 'package_failed'
+    | 'execution_completed'
+    | 'execution_failed'
+    | 'package_promoted';
+
+interface TreeExecutionEvent {
+    id: string;
+    timestamp: string;
+    type: TreeExecutionEventType;
+    packageName?: string;
+    durationMs?: number;
+    continueMode?: boolean;
+    details?: string;
 }
 
 // Global state to track published versions during tree execution - protected by mutex
@@ -264,6 +287,164 @@ const getContextFilePath = (outputDirectory?: string): string => {
     return getOutputPath(outputDir, '.kodrdriv-context');
 };
 
+const getContextHistoryDirectory = (outputDirectory?: string): string => {
+    const outputDir = outputDirectory || DEFAULT_OUTPUT_DIRECTORY;
+    return getOutputPath(outputDir, '.kodrdriv-context-history');
+};
+
+const generateExecutionId = (): string => {
+    return `tree-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const createExecutionEvent = (
+    type: TreeExecutionEventType,
+    fields: Partial<TreeExecutionEvent> = {}
+): TreeExecutionEvent => ({
+    id: `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+    timestamp: new Date().toISOString(),
+    type,
+    ...fields
+});
+
+const appendEventToContext = (context: TreeExecutionContext | null, event: TreeExecutionEvent): void => {
+    if (!context) return;
+    if (!Array.isArray(context.events)) {
+        context.events = [];
+    }
+    context.events.push(event);
+    context.lastUpdateTime = new Date();
+};
+
+const archiveExecutionContext = async (
+    context: TreeExecutionContext,
+    reason: 'completed' | 'failed',
+    outputDirectory?: string
+): Promise<void> => {
+    const storage = createStorage();
+    const historyDir = getContextHistoryDirectory(outputDirectory);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `${timestamp}-${context.executionId}-${reason}.json`;
+    const historyPath = path.join(historyDir, fileName);
+
+    try {
+        await storage.ensureDirectory(historyDir);
+        const contextData = {
+            ...context,
+            startTime: context.startTime.toISOString(),
+            lastUpdateTime: context.lastUpdateTime.toISOString(),
+            publishedVersions: context.publishedVersions.map(v => ({
+                ...v,
+                publishTime: v.publishTime.toISOString()
+            }))
+        };
+        await storage.writeFile(historyPath, JSON.stringify(contextData, null, 2), 'utf-8');
+    } catch (error: any) {
+        const logger = getLogger();
+        logger.warn(`Warning: Failed to archive execution context: ${error.message}`);
+    }
+};
+
+const generateHistoryReport = async (outputDirectory?: string): Promise<string> => {
+    const logger = getLogger();
+    const historyDir = getContextHistoryDirectory(outputDirectory);
+    const storage = createStorage();
+
+    if (!await storage.exists(historyDir)) {
+        return 'No context history found yet. Run tree publish/run to generate history.';
+    }
+
+    const files = (await fs.readdir(historyDir))
+        .filter(name => name.endsWith('.json'))
+        .map(name => path.join(historyDir, name));
+
+    if (files.length === 0) {
+        return 'No context history snapshots found.';
+    }
+
+    const packageStats = new Map<string, {
+        runs: number;
+        failures: number;
+        totalDurationMs: number;
+        maxDurationMs: number;
+    }>();
+
+    let totalRuns = 0;
+    let resumedRuns = 0;
+
+    for (const filePath of files) {
+        try {
+            const raw = await storage.readFile(filePath, 'utf-8');
+            const parsed = safeJsonParse(raw, filePath);
+            totalRuns++;
+            if ((parsed.continueCount || 0) > 0) {
+                resumedRuns++;
+            }
+
+            const events: TreeExecutionEvent[] = Array.isArray(parsed.events) ? parsed.events : [];
+            for (const event of events) {
+                if (!event.packageName) continue;
+                if (event.type !== 'package_completed' && event.type !== 'package_failed') continue;
+
+                const current = packageStats.get(event.packageName) || {
+                    runs: 0,
+                    failures: 0,
+                    totalDurationMs: 0,
+                    maxDurationMs: 0
+                };
+                current.runs++;
+                if (event.type === 'package_failed') {
+                    current.failures++;
+                }
+                if (typeof event.durationMs === 'number' && event.durationMs >= 0) {
+                    current.totalDurationMs += event.durationMs;
+                    current.maxDurationMs = Math.max(current.maxDurationMs, event.durationMs);
+                }
+                packageStats.set(event.packageName, current);
+            }
+        } catch (error: any) {
+            logger.warn(`Skipping unreadable history file ${filePath}: ${error.message}`);
+        }
+    }
+
+    const byFailure = Array.from(packageStats.entries())
+        .sort((a, b) => b[1].failures - a[1].failures || b[1].runs - a[1].runs)
+        .slice(0, 10);
+    const byAverageDuration = Array.from(packageStats.entries())
+        .filter(([, s]) => s.runs > 0 && s.totalDurationMs > 0)
+        .sort((a, b) => (b[1].totalDurationMs / b[1].runs) - (a[1].totalDurationMs / a[1].runs))
+        .slice(0, 10);
+
+    const lines: string[] = [];
+    lines.push('Tree Context History Report');
+    lines.push('');
+    lines.push(`Snapshots analyzed: ${files.length}`);
+    lines.push(`Execution runs: ${totalRuns}`);
+    lines.push(`Runs with --continue resumes: ${resumedRuns}`);
+    lines.push('');
+    lines.push('Top Failure Hotspots:');
+    if (byFailure.length === 0) {
+        lines.push('  (none)');
+    } else {
+        for (const [pkg, stats] of byFailure) {
+            lines.push(`  - ${pkg}: failures=${stats.failures}, runs=${stats.runs}`);
+        }
+    }
+    lines.push('');
+    lines.push('Top Slow Packages (avg duration):');
+    if (byAverageDuration.length === 0) {
+        lines.push('  (none)');
+    } else {
+        for (const [pkg, stats] of byAverageDuration) {
+            const avgMs = Math.round(stats.totalDurationMs / stats.runs);
+            lines.push(`  - ${pkg}: avg=${(avgMs / 1000).toFixed(1)}s, max=${(stats.maxDurationMs / 1000).toFixed(1)}s, runs=${stats.runs}`);
+        }
+    }
+    lines.push('');
+    lines.push(`History directory: ${historyDir}`);
+
+    return lines.join('\n');
+};
+
 // Save execution context to file
 const saveExecutionContext = async (context: TreeExecutionContext, outputDirectory?: string): Promise<void> => {
     const storage = createStorage(); // Silent storage for context operations
@@ -308,9 +489,14 @@ const loadExecutionContext = async (outputDirectory?: string): Promise<TreeExecu
         // Restore dates from ISO strings
         return {
             ...contextData,
+            executionId: contextData.executionId || generateExecutionId(),
+            completedPackages: Array.isArray(contextData.completedPackages) ? contextData.completedPackages : [],
+            buildOrder: Array.isArray(contextData.buildOrder) ? contextData.buildOrder : [],
             startTime: new Date(contextData.startTime),
             lastUpdateTime: new Date(contextData.lastUpdateTime),
-            publishedVersions: contextData.publishedVersions.map((v: any) => ({
+            continueCount: contextData.continueCount || 0,
+            events: Array.isArray(contextData.events) ? contextData.events : [],
+            publishedVersions: (Array.isArray(contextData.publishedVersions) ? contextData.publishedVersions : []).map((v: any) => ({
                 ...v,
                 publishTime: new Date(v.publishTime)
             }))
@@ -357,9 +543,14 @@ const promotePackageToCompleted = async (
         // Restore dates from ISO strings
         const context: TreeExecutionContext = {
             ...contextData,
+            executionId: contextData.executionId || generateExecutionId(),
+            completedPackages: Array.isArray(contextData.completedPackages) ? contextData.completedPackages : [],
+            buildOrder: Array.isArray(contextData.buildOrder) ? contextData.buildOrder : [],
             startTime: new Date(contextData.startTime),
             lastUpdateTime: new Date(contextData.lastUpdateTime),
-            publishedVersions: contextData.publishedVersions.map((v: any) => ({
+            continueCount: contextData.continueCount || 0,
+            events: Array.isArray(contextData.events) ? contextData.events : [],
+            publishedVersions: (Array.isArray(contextData.publishedVersions) ? contextData.publishedVersions : []).map((v: any) => ({
                 ...v,
                 publishTime: new Date(v.publishTime)
             }))
@@ -368,7 +559,10 @@ const promotePackageToCompleted = async (
         // Add package to completed list if not already there
         if (!context.completedPackages.includes(packageName)) {
             context.completedPackages.push(packageName);
-            context.lastUpdateTime = new Date();
+            appendEventToContext(context, createExecutionEvent('package_promoted', {
+                packageName,
+                details: 'Package manually promoted via --promote'
+            }));
             await saveExecutionContext(context, outputDirectory);
         }
     } catch (error: any) {
@@ -1628,6 +1822,12 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     throw error;
                 }
                 executionContext = savedContext;
+                executionContext.continueCount = (executionContext.continueCount || 0) + 1;
+                appendEventToContext(executionContext, createExecutionEvent('execution_resumed', {
+                    continueMode: true,
+                    details: `Resuming after ${executionContext.completedPackages.length} completed packages`
+                }));
+                await saveExecutionContext(executionContext, runConfig.outputDirectory);
 
                 // Use original config but allow some overrides (like dry run)
                 runConfig = {
@@ -1651,7 +1851,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
     // Check if we're in built-in command mode (tree command with second argument)
     const builtInCommand = runConfig.tree?.builtInCommand;
-    const supportedBuiltInCommands = ['commit', 'release', 'publish', 'link', 'unlink', 'development', 'branches', 'run', 'checkout', 'updates', 'precommit', 'pull'];
+    const supportedBuiltInCommands = ['commit', 'release', 'publish', 'link', 'unlink', 'development', 'branches', 'run', 'checkout', 'updates', 'precommit', 'pull', 'history'];
 
     if (builtInCommand && !supportedBuiltInCommands.includes(builtInCommand)) {
         throw new Error(`Unsupported built-in command: ${builtInCommand}. Supported commands: ${supportedBuiltInCommands.join(', ')}`);
@@ -1687,6 +1887,12 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
         // Store scripts for later validation
         (runConfig as any).__scriptsToValidate = scripts;
+    }
+
+    if (builtInCommand === 'history') {
+        const report = await generateHistoryReport(runConfig.outputDirectory);
+        logger.info(report);
+        return report;
     }
 
     // Determine the target directories - either specified or current working directory
@@ -2715,14 +2921,21 @@ export const execute = async (runConfig: Config): Promise<string> => {
             // Initialize execution context if not continuing
             if (!executionContext) {
                 executionContext = {
+                    executionId: generateExecutionId(),
                     command: commandToRun,
                     originalConfig: runConfig,
                     publishedVersions: [],
                     completedPackages: [],
                     buildOrder: buildOrder,
                     startTime: new Date(),
-                    lastUpdateTime: new Date()
+                    lastUpdateTime: new Date(),
+                    continueCount: 0,
+                    events: []
                 };
+                appendEventToContext(executionContext, createExecutionEvent('execution_started', {
+                    continueMode: false,
+                    details: `Starting execution in ${buildOrder.length} packages`
+                }));
 
                 // Save initial context for commands that support continuation
                 if (isBuiltInCommand && (builtInCommand === 'publish' || builtInCommand === 'run') && !isDryRun) {
@@ -2892,6 +3105,12 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     }
                 }
 
+                const packageStartTime = Date.now();
+                if (executionContext && isBuiltInCommand && (builtInCommand === 'publish' || builtInCommand === 'run') && !isDryRun) {
+                    appendEventToContext(executionContext, createExecutionEvent('package_started', { packageName }));
+                    await saveExecutionContext(executionContext, runConfig.outputDirectory);
+                }
+
                 const result = await executePackage(
                     packageName,
                     packageInfo,
@@ -2903,6 +3122,7 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     allPackageNames,
                     isBuiltInCommand
                 );
+                const packageDurationMs = Date.now() - packageStartTime;
 
                 if (result.success) {
                     successCount++;
@@ -2911,7 +3131,10 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     if (executionContext && isBuiltInCommand && (builtInCommand === 'publish' || builtInCommand === 'run') && !isDryRun) {
                         executionContext.completedPackages.push(packageName);
                         executionContext.publishedVersions = publishedVersions;
-                        executionContext.lastUpdateTime = new Date();
+                        appendEventToContext(executionContext, createExecutionEvent('package_completed', {
+                            packageName,
+                            durationMs: packageDurationMs
+                        }));
                         await saveExecutionContext(executionContext, runConfig.outputDirectory);
                     }
 
@@ -2925,6 +3148,14 @@ export const execute = async (runConfig: Config): Promise<string> => {
                     const formattedError = formatSubprojectError(packageName, result.error, packageInfo, i + 1, buildOrder.length);
 
                     if (!isDryRun) {
+                        if (executionContext && isBuiltInCommand && (builtInCommand === 'publish' || builtInCommand === 'run')) {
+                            appendEventToContext(executionContext, createExecutionEvent('package_failed', {
+                                packageName,
+                                durationMs: packageDurationMs,
+                                details: result.error?.message || 'Execution failure'
+                            }));
+                            await saveExecutionContext(executionContext, runConfig.outputDirectory);
+                        }
                         packageLogger.error(`Execution failed`);
                         logger.error(formattedError);
                         logger.error(`Failed after ${successCount} successful packages.`);
@@ -2941,7 +3172,6 @@ export const execute = async (runConfig: Config): Promise<string> => {
                             if (executionContext && isBuiltInCommand && (builtInCommand === 'publish' || builtInCommand === 'run')) {
                                 executionContext.completedPackages.push(packageName);
                                 executionContext.publishedVersions = publishedVersions;
-                                executionContext.lastUpdateTime = new Date();
                                 await saveExecutionContext(executionContext, runConfig.outputDirectory);
                                 logger.info('💾 Execution context saved for recovery.');
                             }
@@ -3032,6 +3262,13 @@ export const execute = async (runConfig: Config): Promise<string> => {
 
                 // Clean up context on successful completion
                 if (isBuiltInCommand && (builtInCommand === 'publish' || builtInCommand === 'run') && !isDryRun) {
+                    if (executionContext) {
+                        appendEventToContext(executionContext, createExecutionEvent('execution_completed', {
+                            details: `Completed ${successCount}/${buildOrder.length} packages`
+                        }));
+                        await saveExecutionContext(executionContext, runConfig.outputDirectory);
+                        await archiveExecutionContext(executionContext, 'completed', runConfig.outputDirectory);
+                    }
                     await cleanupContext(runConfig.outputDirectory);
                 }
 
@@ -3042,6 +3279,18 @@ export const execute = async (runConfig: Config): Promise<string> => {
         return returnOutput;
 
     } catch (error: any) {
+        if (executionContext && !isDryRun) {
+            const builtInCommand = runConfig.tree?.builtInCommand;
+            if (builtInCommand === 'publish' || builtInCommand === 'run') {
+                appendEventToContext(executionContext, createExecutionEvent('execution_failed', {
+                    continueMode: Boolean(runConfig.tree?.continue),
+                    details: error?.message || 'Execution failed'
+                }));
+                await saveExecutionContext(executionContext, runConfig.outputDirectory);
+                await archiveExecutionContext(executionContext, 'failed', runConfig.outputDirectory);
+            }
+        }
+
         // Determine if this is an execution error or workspace analysis error
         const errorMessage = error.message || String(error);
         const errorStack = error.stack || '';
