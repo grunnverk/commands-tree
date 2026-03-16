@@ -43,6 +43,39 @@ Central dependency analysis and tree traversal:
 - Built-in command mode: `kodrdriv tree commit`, `kodrdriv tree publish`
 - Supports parallel execution with smart dependency ordering
 
+### tree publish lockfile behavior
+
+`kodrdriv tree publish` shells out to `kodrdriv publish` per package, so lockfile handling is inherited from `publish.lockfilePolicy`.
+
+- `ignore` (default): each package must keep `package-lock.json` untracked and ignored.
+- `commit`: each package must keep `package-lock.json` present, tracked, and not ignored.
+
+Set policy in your config:
+
+```json
+{
+  "publish": {
+    "lockfilePolicy": "ignore"
+  }
+}
+```
+
+Migration guidance:
+
+```bash
+# ignore policy
+echo "package-lock.json" >> .gitignore
+git rm --cached package-lock.json
+git commit -m "chore: enforce lockfile ignore policy"
+```
+
+```bash
+# commit policy
+npm install --package-lock-only --no-audit --no-fund
+git add package-lock.json
+git commit -m "chore: track lockfile"
+```
+
 ### updates
 Update dependencies matching specific scopes using npm-check-updates.
 
