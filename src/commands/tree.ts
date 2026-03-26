@@ -145,10 +145,12 @@ const updateInterProjectDependencies = async (
                 continue;
             }
 
-            // Skip prerelease versions (e.g., 1.0.0-beta.1, 2.0.0-alpha.3)
-            // Prerelease versions should not be automatically propagated to consumers
-            if (version.includes('-')) {
-                packageLogger.verbose(`Skipping prerelease version ${packageName}@${version} - not updating dependencies`);
+            // Skip prerelease versions UNLESS they are dev-tagged (e.g., 1.0.0-dev.abc123)
+            // Dev-tagged prereleases are published package versions that dependents need to resolve.
+            // Skip alpha/beta/rc releases since those shouldn't propagate automatically.
+            const prereleaseTag = version.includes('-') ? version.split('-')[1].split('.')[0] : null;
+            if (prereleaseTag && prereleaseTag !== 'dev') {
+                packageLogger.verbose(`Skipping prerelease version ${packageName}@${version} (tag: ${prereleaseTag}) - not updating dependencies`);
                 continue;
             }
 
