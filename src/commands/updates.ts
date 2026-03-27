@@ -657,7 +657,11 @@ const runScopedUpdate = async (
     logger.info(`UPDATES_NCU_STARTING: Running npm-check-updates for scope | Scope: ${scope} | Tool: npm-check-updates | Purpose: Find outdated dependencies`);
 
     // Build the npm-check-updates command
-    const ncuCommand = `npx npm-check-updates '/${scope.replace('@', '^@')}//' -u`;
+    // Use --target latest to avoid upgrading to dev-tagged npm prereleases.
+    // GHA publishes dev-tagged prereleases (e.g., 1.5.19-dev.abc123) for CI but the
+    // stable "latest" tag is what dependents should reference. During dev, tree link
+    // handles local resolution anyway, so package.json only needs stable versions.
+    const ncuCommand = `npx npm-check-updates '/${scope.replace('@', '^@')}//' -u --target latest`;
 
     logger.info(`UPDATES_NCU_EXECUTING: Executing npm-check-updates command | Command: ${ncuCommand} | Scope: ${scope}`);
 

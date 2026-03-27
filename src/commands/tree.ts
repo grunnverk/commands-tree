@@ -145,10 +145,16 @@ const updateInterProjectDependencies = async (
                 continue;
             }
 
-            // Skip prerelease versions (e.g., 1.0.0-beta.1, 2.0.0-alpha.3)
-            // Prerelease versions should not be automatically propagated to consumers
+            // Skip ALL prerelease versions — package.json should only reference stable versions.
+            // Dev-tagged npm prereleases (e.g., 1.5.18-dev.abc123) are published for CI/CD but
+            // should NOT be written into dependents' package.json. During development, `tree link`
+            // symlinks local packages directly into node_modules, so package.json references don't
+            // matter for local work. The inter-project updater only exists to ensure that when
+            // a dependent eventually publishes to npm, it references the correct stable version.
+            //
+            // Before updating a dependency, look up the latest STABLE version on npm and use that.
             if (version.includes('-')) {
-                packageLogger.verbose(`Skipping prerelease version ${packageName}@${version} - not updating dependencies`);
+                packageLogger.verbose(`Skipping prerelease version ${packageName}@${version} — package.json should only reference stable versions`);
                 continue;
             }
 
@@ -666,6 +672,35 @@ const extractPublishedVersion = async (
         // Remove 'v' prefix if present
         if (version.startsWith('v')) {
             version = version.substring(1);
+        }
+
+        // CRITICAL: Verify the version from the tag matches the version in package.json at that tag.
+        // The tag name may be stable-looking (e.g., "v1.5.20") while package.json still has a
+        // prerelease version (e.g., "1.5.20-dev.0"). This can happen when:
+        //   1. The version in package.json is a prerelease (1.5.20-dev.0)
+        //   2. kodrdriv creates a tag named v1.5.20-dev.0 (or stripped to v1.5.20)
+        //   3. But a previous buggy run may have created a stable-looking tag (v1.5.20)
+        //      for a prerelease package.json version (1.5.20-dev.0).
+        // Always read the actual version from package.json at the tag to be safe.
+        try {
+            const { stdout: tagPackageJson } = await run(
+                `git show ${latestTag}:package.json`,
+                { cwd: packageDir }
+            );
+            const tagPkg = safeJsonParse(tagPackageJson, `${latestTag}:package.json`);
+            const tagPkgVersion = tagPkg?.version;
+            if (tagPkgVersion) {
+                // Prefer the package.json version — it's the source of truth for what was actually published.
+                // Only use the tag-derived version as a fallback if package.json read fails.
+                version = tagPkgVersion;
+                packageLogger.verbose(`Verified version from tag package.json: ${latestTag} -> ${version}`);
+            } else {
+                packageLogger.warn(`Tag ${latestTag} has no version in package.json, using tag name: ${version}`);
+            }
+        } catch {
+            // Git show can fail if package.json didn't exist at that tag (rare).
+            // Fall back to the tag-derived version.
+            packageLogger.verbose(`Could not read package.json from tag ${latestTag}, using tag name: ${version}`);
         }
 
         packageLogger.verbose(`Extracted published version from tag: ${latestTag} -> ${version}`);
