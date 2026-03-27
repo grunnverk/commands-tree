@@ -145,12 +145,16 @@ const updateInterProjectDependencies = async (
                 continue;
             }
 
-            // Skip prerelease versions UNLESS they are dev-tagged (e.g., 1.0.0-dev.abc123)
-            // Dev-tagged prereleases are published package versions that dependents need to resolve.
-            // Skip alpha/beta/rc releases since those shouldn't propagate automatically.
-            const prereleaseTag = version.includes('-') ? version.split('-')[1].split('.')[0] : null;
-            if (prereleaseTag && prereleaseTag !== 'dev') {
-                packageLogger.verbose(`Skipping prerelease version ${packageName}@${version} (tag: ${prereleaseTag}) - not updating dependencies`);
+            // Skip ALL prerelease versions — package.json should only reference stable versions.
+            // Dev-tagged npm prereleases (e.g., 1.5.18-dev.abc123) are published for CI/CD but
+            // should NOT be written into dependents' package.json. During development, `tree link`
+            // symlinks local packages directly into node_modules, so package.json references don't
+            // matter for local work. The inter-project updater only exists to ensure that when
+            // a dependent eventually publishes to npm, it references the correct stable version.
+            //
+            // Before updating a dependency, look up the latest STABLE version on npm and use that.
+            if (version.includes('-')) {
+                packageLogger.verbose(`Skipping prerelease version ${packageName}@${version} — package.json should only reference stable versions`);
                 continue;
             }
 
