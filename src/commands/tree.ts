@@ -1997,9 +1997,10 @@ export const execute = async (runConfig: Config): Promise<string> => {
         logger.verbose(`${isDryRun ? 'DRY RUN: ' : ''}Scanning for package.json files...`);
         let allPackageJsonPaths: string[] = [];
 
+        const expandWorkspaces = builtInCommand === 'link' || builtInCommand === 'unlink';
         for (const targetDirectory of directories) {
             logger.verbose(`${isDryRun ? 'DRY RUN: ' : ''}Scanning directory: ${targetDirectory}`);
-            const packageJsonPaths = await scanForPackageJsonFiles(targetDirectory, excludedPatterns);
+            const packageJsonPaths = await scanForPackageJsonFiles(targetDirectory, excludedPatterns, { expandWorkspaces });
             allPackageJsonPaths = allPackageJsonPaths.concat(packageJsonPaths);
         }
 
